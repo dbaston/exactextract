@@ -30,6 +30,7 @@ target_include_directories(_exactextract PRIVATE
     ${GEOS_INCLUDE_DIR})
     set_property(TARGET ${LIB_NAME} PROPERTY POSITION_INDEPENDENT_CODE ON)
     target_link_libraries(_exactextract PRIVATE ${LIB_NAME} ${GEOS_LIBRARY})
+install(TARGETS _exactextract LIBRARY DESTINATION "src/exactextract")
 
 add_test(NAME "pybindings" 
          COMMAND ${CMAKE_COMMAND} -E env
