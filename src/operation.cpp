@@ -12,6 +12,9 @@
 // limitations under the License.
 
 #include "operation.h"
+
+#include "measures.h"
+#include "raster_area.h"
 #include "utils.h"
 
 #include <charconv>
@@ -41,6 +44,11 @@ make_field_name(const std::string& prefix, const T& value)
     }
 }
 
+template<typename T>
+std::optional<T>
+read(const std::string& value);
+
+template<>
 std::optional<double>
 read(const std::string& value)
 {
@@ -53,19 +61,29 @@ read(const std::string& value)
     return std::nullopt;
 }
 
+template<>
+std::optional<std::string>
+read(const std::string& value)
+{
+    return std::optional(value);
+}
+
 template<typename T>
 T
-extract_arg(Operation::ArgMap& options, const std::string& name)
+extract_arg(Operation::ArgMap& options, const std::string& name, std::optional<T> default_value = std::nullopt)
 {
     auto it = options.find(name);
     if (it == options.end()) {
+        if (default_value.has_value()) {
+            return default_value.value();
+        }
         throw std::runtime_error("Missing required argument: " + name);
     }
 
     const std::string& raw_value = it->second;
 
     // std::from_chars not supported in clang
-    auto parsed = read(raw_value);
+    auto parsed = read<T>(raw_value);
     if (!parsed.has_value()) {
         throw std::runtime_error("Failed to parse value of argument: " + name);
     }
@@ -290,6 +308,74 @@ OPERATION(WEIGHTED_SUM, stats.weighted_sum());
 OPERATION(WEIGHTED_VARIANCE, stats.weighted_variance(), REQ_VARIANCE);
 OPERATION(WEIGHTS, stats.weights(), REQ_STORED_WEIGHTS);
 
+class Area : public OperationImpl<Area>
+{
+  public:
+    REQ_STORED_XY
+    using OperationImpl::OperationImpl;
+
+    void handle_options(ArgMap& options)
+    {
+        std::string method = extract_arg<std::string>(options, "method", "cartesian");
+
+        if (method == "cartesian") {
+            m_method = AreaMethods::CARTESIAN;
+        } else if (method == "spherical") {
+            m_method = AreaMethods::SPHERICAL;
+
+            std::string unit = extract_arg<std::string>(options, "unit", "km2");
+
+            if (unit == "km2") {
+                m_unit = Unit::km2;
+            } else if (unit == "m2") {
+                m_unit = Unit::m2;
+            } else {
+                throw std::invalid_argument("unit must be 'km2' or 'm2'");
+            }
+        } else {
+            throw std::invalid_argument("method must be 'cartesian' or 'spherical'");
+        }
+    }
+
+    template<typename Stats>
+    auto get(const Stats& stats) const
+    {
+        std::unique_ptr<AbstractRaster<double>> area;
+        switch (m_method) {
+            case AreaMethods::CARTESIAN:
+                area = std::make_unique<CartesianAreaRaster<double>>(grid());
+                break;
+            case AreaMethods::SPHERICAL:
+                area = std::make_unique<SphericalAreaRaster<double>>(grid());
+                break;
+            case AreaMethods::NONE:
+                break;
+        }
+
+        const auto& x = stats.center_x();
+        const auto& y = stats.center_y();
+        std::vector<double> areas(x.size());
+        double f = m_unit == Unit::km2 ? 1e-6 : 1;
+        for (std::size_t i = 0; i < x.size(); i++) {
+            std::size_t row = area->grid().get_column(y[i]);
+            std::size_t col = area->grid().get_row(x[i]);
+            areas[i] = f * (*area)(row, col);
+        }
+
+        return areas;
+    }
+
+  private:
+    enum class Unit
+    {
+        km2,
+        m2
+    };
+
+    AreaMethods m_method;
+    Unit m_unit;
+};
+
 class CellId : public OperationImpl<CellId>
 {
   public:
@@ -430,6 +516,10 @@ Operation::create(std::string stat,
                   std::map<std::string, std::string> options)
 {
 #define CONSTRUCT(TYP) return std::make_unique<TYP>(stat, p_name, p_values, p_weights, std::move(options))
+
+    if (stat == "area") {
+        CONSTRUCT(Area);
+    }
 
     if (stat == "cell_id") {
         CONSTRUCT(CellId);

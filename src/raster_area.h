@@ -11,8 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef EXACTEXTRACT_RASTER_AREA_H
-#define EXACTEXTRACT_RASTER_AREA_H
+#pragma once
 
 #include "raster.h"
 
@@ -74,5 +73,3 @@ class SphericalAreaRaster : public AbstractRaster<T>
     std::vector<double> m_areas;
 };
 }
-
-#endif // EXACTEXTRACT_RASTER_AREA_H

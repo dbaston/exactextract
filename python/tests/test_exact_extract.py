@@ -49,6 +49,13 @@ def make_rect(xmin, ymin, xmax, ymax, id=None, properties=None):
 @pytest.mark.parametrize(
     "stat,expected",
     [
+        ("area", np.array([1] * 9, dtype=np.float64)),
+        (
+            "area(method=spherical,unit=km2)",
+            np.array(
+                [12391.4] * 3 + [12387.6254] * 3 + [12380.0774] * 3, dtype=np.float64
+            ),
+        ),
         ("count", 4),
         ("mean", 5),
         ("median", 5),
@@ -93,12 +100,14 @@ def test_basic_stats(stat, expected, output_format):
     result = exact_extract(rast, square, stat, output=output_format)
 
     if type(expected) is dict:
-        stat, expected = next(iter(expected.items()))
+        result_col, expected = next(iter(expected.items()))
+    else:
+        result_col = stat.split("(")[0]
 
     if output_format == "geojson":
-        value = result[0]["properties"][stat]
+        value = result[0]["properties"][result_col]
     else:
-        value = result[stat][0]
+        value = result[result_col][0]
 
     if type(expected) is set:
         assert set(value) == expected
