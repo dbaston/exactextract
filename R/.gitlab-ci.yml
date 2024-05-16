@@ -1,0 +1,43 @@
+stages:
+  - test
+  - deploy
+
+test-latest:
+  stage: test
+  image: rocker/geospatial:latest
+  script:
+    - apt-get update && apt-get install --no-install-recommends -y devscripts
+    - R -e "devtools::install_dev_deps()"
+    - R -e "devtools::document()"
+    - R -e "devtools::check()"
+    - R -e "install.packages(c('DT', 'covr')); covr::gitlab(quiet=FALSE)"
+  artifacts:
+    paths:
+      - public
+
+test-devel:
+  stage: test
+  image: rocker/geospatial:dev-osgeo
+  script:
+    - apt-get update && apt-get install --no-install-recommends -y devscripts
+    - R -e "install.packages(c('raster', 'terra', 'ncdf4'))"
+    - R -e "remotes::install_git('https://github.com/r-spatial/sf')"
+    - R -e "devtools::document()"
+    - R -e "devtools::check()"
+
+pages:
+  stage: deploy
+  image: rocker/geospatial
+  script:
+    - apt-get update && apt-get install --no-install-recommends -y libharfbuzz-dev libfribidi-dev
+    - R -e "install.packages('pkgdown')"
+    - R -e "devtools::document()"
+    - R -e "pkgdown::build_site()"
+    - mkdir -p public
+    - mv docs/* public
+  artifacts:
+    paths:
+      - public
+  only:
+    - master
+    - gitlab-pages

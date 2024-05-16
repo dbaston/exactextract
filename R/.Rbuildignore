@@ -1,0 +1,16 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+.o$
+.git$
+ci$
+.gitlab-ci.yml$
+^docs$
+appveyor.yml$
+.dockerignore
+.gz$
+CONTRIBUTING.md
+^_pkgdown\.yml$
+^pkgdown$
+^vignettes.*cache$
+.gpkg-shm$
+.gpkg-wal
