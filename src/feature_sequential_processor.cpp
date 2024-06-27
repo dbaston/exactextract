@@ -12,6 +12,7 @@
 // limitations under the License.
 
 #include <set>
+#include <sstream>
 #include <string>
 
 #include "box.h"
@@ -22,6 +23,35 @@
 
 namespace exactextract {
 
+std::string
+FeatureSequentialProcessor::progress_message(const Feature& f)
+{
+    if (m_include_cols.empty()) {
+        return ".";
+    }
+
+    const std::string& field = m_include_cols.front();
+
+    try {
+        std::stringstream ss;
+        ss << "Processing ";
+        const auto& value = f.get(field);
+        if (const std::string* sval = std::get_if<std::string>(&value)) {
+            ss << *sval;
+        } else if (const std::int32_t* ival = std::get_if<std::int32_t>(&value)) {
+            ss << *ival;
+        } else if (const double* dval = std::get_if<double>(&value)) {
+            ss << *dval;
+        } else {
+            ss << ".";
+        }
+
+        return ss.str();
+    } catch (const std::exception&) {
+        return ".";
+    }
+}
+
 void
 FeatureSequentialProcessor::process()
 {
@@ -30,7 +60,9 @@ FeatureSequentialProcessor::process()
 
         auto geom = f_in.geometry();
 
-        progress(f_in, m_include_cols.empty() ? "." : m_include_cols.front());
+        if (m_show_progress) {
+            progress(progress_message(f_in));
+        }
 
         Box feature_bbox = exactextract::geos_get_box(m_geos_context, geom);
 
@@ -79,8 +111,6 @@ FeatureSequentialProcessor::process()
                     } else {
                         m_reg.update_stats(f_in, *op, *coverage, values_map[op->values]);
                     }
-
-                    progress();
                 }
             }
         }
