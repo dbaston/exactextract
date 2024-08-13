@@ -155,5 +155,74 @@ class MapFeature : public Feature
 
     std::unordered_map<std::string, FieldValue> m_map;
     geom_ptr_r m_geom;
+
+    class FieldNameIterator
+    {
+        using MapType = decltype(MapFeature::m_map);
+        using IteratorType = MapType::const_iterator;
+
+      public:
+        FieldNameIterator(const IteratorType& it)
+          : m_it(it)
+        {
+        }
+
+        const std::string_view operator*() const
+        {
+            return m_it->first;
+        }
+
+        FieldNameIterator& operator++()
+        {
+            m_it++;
+            return *this;
+        }
+
+        bool operator==(const FieldNameIterator& other)
+        {
+            return m_it == other.m_it;
+        }
+
+        bool operator!=(const FieldNameIterator& other)
+        {
+            return !(*this == other);
+        }
+
+      private:
+        IteratorType m_it;
+    };
+
+  public:
+    class FieldNames
+    {
+        using MapType = decltype(MapFeature::m_map);
+        using IteratorType = MapType::const_iterator;
+
+      public:
+        FieldNames(const MapType& map)
+          : m_begin(map.begin())
+          , m_end(map.end())
+        {
+        }
+
+        FieldNameIterator begin() const
+        {
+            return FieldNameIterator(m_begin);
+        }
+
+        FieldNameIterator end() const
+        {
+            return FieldNameIterator(m_end);
+        }
+
+      private:
+        const IteratorType m_begin;
+        const IteratorType m_end;
+    };
+
+    FieldNames fields() const
+    {
+        return FieldNames(m_map);
+    }
 };
 }

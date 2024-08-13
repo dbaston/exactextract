@@ -60,10 +60,10 @@ class TestWriter : public OutputWriter
 
     void write(const Feature& f) override
     {
-        m_feature = MapFeature(f);
+        features.push_back(MapFeature(f));
     }
 
-    MapFeature m_feature;
+    std::vector<MapFeature> features;
 };
 
 static GEOSContextHandle_t
@@ -112,7 +112,7 @@ TEST_CASE("Operations dispatch to the correct RasterStats function", "[operation
 
     fsp.process();
 
-    const MapFeature& f = writer.m_feature;
+    const MapFeature& f = writer.features.front();
 
     CHECK(f.get_double(stat) == Approx(expected));
 }
@@ -150,7 +150,7 @@ TEMPLATE_TEST_CASE("result_type returns correct result", "[operation]", double, 
 
     fsp.process();
 
-    const Feature& f = writer.m_feature;
+    const Feature& f = writer.features.front();
 
     CHECK(op->result_type() == f.field_type(op->name));
 }
@@ -177,7 +177,7 @@ TEMPLATE_TEST_CASE("raster value type is mapped to appropriate field type", "[op
     fsp.add_operation(*op);
     fsp.process();
 
-    const MapFeature& f = writer.m_feature;
+    const MapFeature& f = writer.features.front();
 
     CHECK(op->result_type() == f.field_type("mode"));
 
@@ -221,7 +221,7 @@ TEMPLATE_TEST_CASE("frac values correspond to entries in unique()", "[operation]
 
     fsp.process();
 
-    const MapFeature& f = writer.m_feature;
+    const MapFeature& f = writer.features.front();
 
     std::map<TestType, double> fracs;
 
@@ -289,7 +289,7 @@ TEMPLATE_TEST_CASE("no error if feature does not intersect raster", "[processor]
     processor.add_operation(*median);
     processor.process();
 
-    const MapFeature& f = writer.m_feature;
+    const MapFeature& f = writer.features.front();
     CHECK(f.get_double("count") == 0);
     CHECK(std::isnan(f.get_double("median")));
 }
@@ -393,7 +393,7 @@ TEMPLATE_TEST_CASE("correct result for feature partially intersecting raster", "
     processor.add_operation(*median);
     processor.process();
 
-    const MapFeature& f = writer.m_feature;
+    const MapFeature& f = writer.features.front();
     CHECK(f.get_double("count") == 1);
     CHECK(f.get_double("median") == 3);
 }
@@ -429,11 +429,57 @@ TEMPLATE_TEST_CASE("include_col and include_geom work as expected", "[processor]
     ds.reset();
     ds.next();
 
-    const MapFeature& f = writer.m_feature;
+    const MapFeature& f = writer.features.front();
     CHECK(f.get_double("count") == 4.0);
     CHECK(f.get_string("fid") == "15");
     CHECK(f.get_int("type") == 13);
     CHECK(GEOSEquals_r(context, f.geometry(), ds.feature().geometry()) == 1);
+}
+
+TEST_CASE("unnesting works as expected", "[processor]")
+{
+    GEOSContextHandle_t context = init_geos();
+
+    Grid<bounded_extent> ex{ { 0, 0, 3, 3 }, 1, 1 }; // 3x3 grid
+    Matrix<double> values{ { { 1, 2, 3 },
+                             { 4, 4, 4 },
+                             { 5, 5, 5 } } };
+    auto value_rast = std::make_unique<Raster<double>>(std::move(values), ex.extent());
+    MemoryRasterSource value_src(std::move(value_rast));
+
+    WKTFeatureSource ds;
+    MapFeature mf;
+    mf.set("fid", "15");
+    mf.set_geometry(geos_ptr(context, GEOSGeomFromWKT_r(context, "POLYGON ((0 0, 3 0, 3 3, 0 3, 0 0))")));
+    ds.add_feature(std::move(mf));
+
+    TestWriter writer;
+
+    FeatureSequentialProcessor processor(ds, writer);
+    auto count = Operation::create("count", "count", &value_src, nullptr);
+    auto unique = Operation::create("unique", "unique", &value_src, nullptr);
+    processor.add_operation(*count);
+    processor.add_operation(*unique);
+    processor.include_col("fid");
+    processor.unnest(true);
+    processor.process();
+
+    std::vector<double> unique_values;
+
+    CHECK(writer.features.size() == 5);
+    for (const auto& f : writer.features) {
+        CHECK(f.get_double("count") == 9.0);
+        CHECK(f.get_string("fid") == "15");
+        unique_values.push_back(f.get_double("unique"));
+    }
+
+    std::sort(unique_values.begin(), unique_values.end());
+
+    CHECK(unique_values[0] == 1);
+    CHECK(unique_values[1] == 2);
+    CHECK(unique_values[2] == 3);
+    CHECK(unique_values[3] == 4);
+    CHECK(unique_values[4] == 5);
 }
 
 TEST_CASE("Operation arguments", "[operation]")

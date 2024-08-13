@@ -67,6 +67,7 @@ class Processor
     {
         m_operations.push_back(op.clone());
         m_reg.prepare(op);
+        // FIXME. Need to let the writer know if we are unnesting, as the data type may change?
         m_output.add_operation(op);
     }
 
@@ -99,21 +100,14 @@ class Processor
         m_progress_fn = fn;
     }
 
-    void write_result(const Feature& f_in)
+    void unnest(bool val)
     {
-        auto f_out = m_output.create_feature();
-        if (m_include_geometry) {
-            f_out->set_geometry(f_in.geometry());
-        }
-        for (const auto& col : m_include_cols) {
-            f_out->set(col, f_in);
-        }
-        for (const auto& op : m_operations) {
-            op->set_result(m_reg, f_in, *f_out);
-        }
-        m_output.write(*f_out);
-        m_reg.flush_feature(f_in);
+        m_unnest = val;
     }
+
+    void write_result(const Feature& f_in);
+
+    void write_result_unnested(const Feature& f_in);
 
   protected:
     void progress(double frac, std::string_view message) const
@@ -140,6 +134,7 @@ class Processor
 
     bool m_show_progress = false;
     bool m_include_geometry = false;
+    bool m_unnest = false;
 
     std::vector<std::unique_ptr<Operation>> m_operations;
 

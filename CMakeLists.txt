@@ -191,6 +191,7 @@ set(PROJECT_SOURCES
         src/perimeter_distance.cpp
         src/perimeter_distance.h
         src/processor.h
+        src/processor.cpp
         src/raster.h
         src/raster_area.h
         src/raster_cell_intersection.cpp

@@ -1005,6 +1005,8 @@ def test_output_map_fields():
     weights = NumPyRasterSource(np.array([[0, 0, 0], [0, 0, 0], [1, 1, 1]]))
     square = make_rect(0.5, 0.5, 2.5, 2.5)
 
+    breakpoint()
+
     result = exact_extract(
         rast,
         square,
