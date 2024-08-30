@@ -53,10 +53,12 @@ class GDALRasterSource(RasterSource):
 
         self.band = self.ds.GetRasterBand(band_idx)
         self.isfloat = self.band.DataType in {gdal.GDT_Float32, gdal.GDT_Float64}
-        self.scaled = self.band.GetScale() not in (
+        self.scale = self.band.GetScale()
+        self.offset = self.band.GetOffset()
+        self.scaled = self.scale not in (
             None,
             1.0,
-        ) or self.band.GetOffset() not in (None, 0.0)
+        ) or self.offset not in (None, 0.0)
         self.use_mask_band = self._calc_use_mask_band()
 
         if name:
@@ -111,12 +113,12 @@ class GDALRasterSource(RasterSource):
                 .astype(bool)
             )
 
-        if self.band.GetScale() not in (None, 1.0):
+        if self.scale not in (None, 1.0):
             if issubclass(arr.dtype.type, np.integer):
                 arr = arr.astype(np.float64)
             arr *= self.band.GetScale()
 
-        if self.band.GetOffset() not in (None, 0.0):
+        if self.scale not in (None, 0.0):
             if issubclass(arr.dtype.type, np.integer):
                 arr = arr.astype(np.float64)
             arr += self.band.GetOffset()
