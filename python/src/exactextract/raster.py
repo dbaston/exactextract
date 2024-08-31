@@ -60,6 +60,7 @@ class GDALRasterSource(RasterSource):
             1.0,
         ) or self.offset not in (None, 0.0)
         self.use_mask_band = self._calc_use_mask_band()
+        self.read_type = None
 
         if name:
             self.set_name(name)
@@ -103,7 +104,9 @@ class GDALRasterSource(RasterSource):
 
     def read_window(self, x0, y0, nx, ny):
 
-        arr = self.band.ReadAsArray(xoff=x0, yoff=y0, win_xsize=nx, win_ysize=ny)
+        arr = self.band.ReadAsArray(
+            xoff=x0, yoff=y0, win_xsize=nx, win_ysize=ny, buf_type=self.read_type
+        )
 
         mask = None
         if self.use_mask_band:
@@ -122,6 +125,11 @@ class GDALRasterSource(RasterSource):
             if issubclass(arr.dtype.type, np.integer):
                 arr = arr.astype(np.float64)
             arr += self.band.GetOffset()
+
+        if self.read_type is None:
+            from osgeo import gdal_array
+
+            self.read_type = gdal_array.NumericTypeCodeToGDALTypeCode(arr.dtype)
 
         if mask is not None:
             return np.ma.masked_array(arr, mask)
